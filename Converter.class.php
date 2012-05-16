@@ -32,10 +32,12 @@ class Converter {
 	}
 
 	public function getTablesArray() {
+
 		return $this->tables;
 	}
 
 	public function convert() {
+
 		$db = new Database();
 		// convert all text fields to blobs
 		foreach ($this->tables as $table) {
@@ -67,6 +69,7 @@ class Table {
 	protected $fields = array();
 
 	public function __construct($name) {
+
 		$this->name = $name;
 		$this->populateFields();
 	}
@@ -74,17 +77,28 @@ class Table {
 	public function populateFields() {
 
 		$db = new Database();
-		$query = " SHOW FIELDS IN `{$this->name}` ";
 
+		$query = " SHOW KEYS IN `{$this->name}` ";
+		$data = $db->query($query, 'table');
+		if (!empty($data)) {
+			$keys = array();
+			foreach ($data as $row) {
+				$keys[$row['Column_name']] = $row;
+			}
+		}
+
+		$query = " SHOW FIELDS IN `{$this->name}` ";
 		$data = $db->query($query, 'table');
 
 		foreach ($data as $row) {
-			$this->fields[] = new Field($row['Field'], $row['Type'], $this->name);
+			$this->fields[] = new Field($row['Field'], $row['Type'], $this->name, $keys[$row['Field']]);
 		}
+
 
 	}
 
 	public function blobFields() {
+
 		foreach ($this->fields as $field) {
 			if ($field->isText()) {
 				try {
@@ -96,6 +110,7 @@ class Table {
 		}
 	}
 	public function utf8Fields() {
+
 		foreach ($this->fields as $field) {
 			if ($field->isText()) {
 				try {
@@ -114,33 +129,50 @@ class Field {
 	protected $name;
 	protected $type;
 	protected $table;
+	protected $key;
 	protected $text = false;
 
-	public function __construct($name, $type, $table) {
+	public function __construct($name, $type, $table, $key = false) {
+
 		$this->name = $name;
 		$this->type = $type;
 		$this->table = $table;
-		if ($this->type == 'text' || stristr($this->type,'varchar') ) {
+		$this->key = $key;
+		if ($this->type == 'text' || stristr($this->type, 'varchar')) {
 			$this->text = true;
 		}
 	}
 
 	public function makeBlob() {
+
 		$db = new Database();
+
+		if ($this->key) {
+			// remove the key as blob likely break it
+			$query = " DROP INDEX `".$key['Key_name']."` ON `".$this->table."` ";
+			if (!$db->execute_query($query)) throw new Exception('Failed to remove index ' . $key['Key_name']);
+		}
+
 		$query = " ALTER TABLE `" . $this->table . "` MODIFY `" . $this->name . "` blob";
-		if (!$db->execute_query($query))
-			throw new Exception('Failed to convert field ' . $this->name . ' to BLOB');
+		if (!$db->execute_query($query)) throw new Exception('Failed to convert field ' . $this->name . ' to BLOB');
 
 	}
 
 	public function makeUtf8() {
+
 		$db = new Database();
 		$query = " ALTER TABLE `" . $this->table . "` MODIFY `" . $this->name . "` " . $this->type . " CHARACTER SET UTF8 ";
-		if (!$db->execute_query($query))
-			throw new Exception('Failed to convert field ' . $this->name . ' to ' . $this->type);
+		if (!$db->execute_query($query)) throw new Exception('Failed to convert field ' . $this->name . ' to ' . $this->type);
+
+		if ($this->key) {
+			// restore the key
+			$query = " CREATE INDEX `".$key['Key_name']."` ON `".$this->table."` ";
+			if (!$db->execute_query($query)) throw new Exception('Failed to add index ' . $key['Key_name']);
+		}
 	}
 
 	public function isText() {
+
 		return $this->text;
 	}
 

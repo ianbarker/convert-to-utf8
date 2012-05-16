@@ -149,7 +149,7 @@ class Field {
 
 		if ($this->key) {
 			// remove the key as blob likely break it
-			$query = " DROP INDEX `".$key['Key_name']."` ON `".$this->table."` ";
+			$query = " DROP INDEX `".$this->key['Key_name']."` ON `".$this->table."` ";
 			if (!$db->execute_query($query)) throw new Exception('Failed to remove index ' . $key['Key_name']);
 		}
 
@@ -166,7 +166,7 @@ class Field {
 
 		if ($this->key) {
 			// restore the key
-			$query = " CREATE INDEX `".$key['Key_name']."` ON `".$this->table."` ";
+			$query = " CREATE INDEX `".$this->key['Key_name']."` ON `".$this->table."` (`".$this->name."`) ";
 			if (!$db->execute_query($query)) throw new Exception('Failed to add index ' . $key['Key_name']);
 		}
 	}
